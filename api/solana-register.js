@@ -1,5 +1,5 @@
 import { Connection, Keypair, Transaction, TransactionInstruction, PublicKey } from '@solana/web3.js'
-
+import { Buffer } from 'buffer'
 // Persistent system keypair cached in memory across API requests.
 // In a serverless environment, this persists as long as the container is warm.
 let systemPayer = null

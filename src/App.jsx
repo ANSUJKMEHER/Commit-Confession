@@ -281,7 +281,13 @@ export default function App() {
           alignment: persona?.alignment,
         }),
       })
-      const data = await r.json()
+      const text = await r.text()
+      let data = {}
+      try {
+        data = JSON.parse(text)
+      } catch (parseErr) {
+        throw new Error('Vercel server returned an invalid response. Please check your Vercel logs.')
+      }
       if (!r.ok) throw new Error(data.error || 'Solana registration failed')
       
       if (data.error) {
