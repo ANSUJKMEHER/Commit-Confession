@@ -1,10 +1,8 @@
 import { Connection, Keypair, Transaction, TransactionInstruction, PublicKey } from '@solana/web3.js'
 
-// System wallet keypair. Devnet SOL is free, so we can hardcode a temporary keypair
-// or load it from the environment. To ensure it works out of the box, we can generate a keypair
-// and request an airdrop on demand, or use a system keypair.
-// For zero-config local testing, we generate a keypair and request a Devnet airdrop on the fly!
-// This makes it completely zero-setup for the user.
+// Persistent system keypair cached in memory across API requests.
+// In a serverless environment, this persists as long as the container is warm.
+let systemPayer = null
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -20,21 +18,63 @@ export default async function handler(req, res) {
     // Connect to Solana Devnet RPC
     const connection = new Connection('https://api.devnet.solana.com', 'confirmed')
 
-    // Generate a temporary execution authority keypair
-    const payer = Keypair.generate()
+    // Initialize or retrieve the system keypair
+    if (!systemPayer) {
+      // Check if there is a pre-funded keypair in the environment
+      if (process.env.SOLANA_PAYER_KEY) {
+        try {
+          const secretKey = Uint8Array.from(JSON.parse(process.env.SOLANA_PAYER_KEY))
+          systemPayer = Keypair.fromSecretKey(secretKey)
+        } catch (e) {
+          console.error('Failed to parse SOLANA_PAYER_KEY:', e)
+          systemPayer = Keypair.generate()
+        }
+      } else {
+        systemPayer = Keypair.generate()
+      }
+    }
 
-    // Request a small Devnet airdrop to pay for the transaction fees (~0.005 SOL is plenty)
+    // Check balance of system payer (1 SOL = 1,000,000,000 lamports)
+    let balance = 0
     try {
-      const airdropSig = await connection.requestAirdrop(payer.publicKey, 10000000) // 0.01 SOL
-      const latestBlockHash = await connection.getLatestBlockhash()
-      await connection.confirmTransaction({
-        blockhash: latestBlockHash.blockhash,
-        lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
-        signature: airdropSig,
+      balance = await connection.getBalance(systemPayer.publicKey)
+    } catch (e) {
+      console.warn('Failed to fetch balance, assuming 0')
+    }
+
+    // If balance is low (less than 0.005 SOL), request an airdrop to top up
+    if (balance < 5000000) {
+      try {
+        console.log(`System wallet balance low (${balance} lamports). Requesting airdrop for ${systemPayer.publicKey.toBase58()}...`)
+        const airdropSig = await connection.requestAirdrop(systemPayer.publicKey, 100000000) // 0.1 SOL
+        const latestBlockHash = await connection.getLatestBlockhash()
+        await connection.confirmTransaction({
+          blockhash: latestBlockHash.blockhash,
+          lastValidBlockHeight: latestBlockHash.lastValidBlockHeight,
+          signature: airdropSig,
+        })
+        console.log('Airdrop confirmed!')
+      } catch (airdropErr) {
+        console.warn('Airdrop request rate-limited or failed:', airdropErr.message)
+      }
+    }
+
+    const payer = systemPayer
+
+    // Refetch balance to see if airdrop succeeded or if we have existing balance
+    let finalBalance = 0
+    try {
+      finalBalance = await connection.getBalance(payer.publicKey)
+    } catch (e) {
+      finalBalance = balance
+    }
+
+    if (finalBalance < 5000) {
+      return res.status(200).json({
+        rateLimited: true,
+        address: payer.publicKey.toBase58(),
+        message: `System Devnet faucet rate-limited. Please airdrop a small amount of Devnet SOL to ${payer.publicKey.toBase58()} at faucet.solana.com to activate on-chain registry.`
       })
-    } catch (airdropErr) {
-      console.warn('Airdrop failed, attempting transaction anyway:', airdropErr.message)
-      // Devnet faucets are sometimes rate-limited. In production, you would use a pre-funded keypair.
     }
 
     // Define Memo program text payload (JSON string containing the proof details)
@@ -43,7 +83,7 @@ export default async function handler(req, res) {
       repo: `${owner}/${repo}`,
       commits: stats.totalCommits,
       alignment: alignment,
-      rage: stats.ragePct,
+      rage: stats.ragePct ?? 0,
       timestamp: new Date().toISOString(),
     })
 

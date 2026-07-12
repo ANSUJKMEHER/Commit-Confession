@@ -72,6 +72,7 @@ export default function App() {
   const [sharing, setSharing]         = useState(false)
   const [solanaUrl, setSolanaUrl]     = useState(null)
   const [solanaLoading, setSolanaLoading] = useState(false)
+  const [solanaNotice, setSolanaNotice]   = useState(null)
   const [customImagePrompt, setCustomImagePrompt] = useState('')
   const [tempPrompt, setTempPrompt] = useState('')
   const [imageSeed, setImageSeed] = useState(42)
@@ -152,6 +153,7 @@ export default function App() {
     setAudioUrl(null)
     setAudioBlob(null)
     setSolanaUrl(null)
+    setSolanaNotice(null)
     setCustomImagePrompt('')
     setTempPrompt('')
     setImageSeed(42)
@@ -266,6 +268,7 @@ export default function App() {
 
   async function handleRegisterSolana() {
     setSolanaLoading(true)
+    setSolanaNotice(null)
     setError(null)
     try {
       const r = await fetch('/api/solana-register', {
@@ -280,7 +283,13 @@ export default function App() {
       })
       const data = await r.json()
       if (!r.ok) throw new Error(data.error || 'Solana registration failed')
-      setSolanaUrl(data.solscanUrl)
+      
+      if (data.rateLimited) {
+        setSolanaNotice(data)
+      } else {
+        setSolanaUrl(data.solscanUrl)
+        setSolanaNotice(null)
+      }
     } catch (err) {
       setError(err.message)
     } finally {
@@ -606,6 +615,20 @@ export default function App() {
                     >
                       👁️ View Solana Transaction on Solscan
                     </a>
+                  ) : solanaNotice ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(235, 94, 85, 0.08)', border: '1px dashed rgba(235, 94, 85, 0.3)', borderRadius: 'var(--radius)', padding: '12px', marginTop: '4px' }}>
+                      <p style={{ fontSize: '0.78rem', color: 'var(--amber)', margin: 0, textAlign: 'left', lineHeight: 1.3 }}>
+                        ⚠️ {solanaNotice.message}
+                      </p>
+                      <button
+                        onClick={handleRegisterSolana}
+                        disabled={solanaLoading}
+                        className="btn-ghost"
+                        style={{ borderColor: 'var(--violet)', color: 'var(--paper)', fontSize: '0.75rem', padding: '6px 0', marginTop: '4px' }}
+                      >
+                        {solanaLoading ? '⚡ Checking balance & sending...' : '🔄 I funded it, try registering again!'}
+                      </button>
+                    </div>
                   ) : (
                     <button
                       onClick={handleRegisterSolana}
