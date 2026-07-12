@@ -88,7 +88,7 @@ export default async function handler(req, res) {
     })
 
     // Construct the Memo instruction (Memo program address is standard)
-    const memoProgramId = new PublicKey('MemoSgmgqmqfQMw7sFU7urU17Z5FRJ6296Qn67FFu1f')
+    const memoProgramId = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr')
     const instruction = new TransactionInstruction({
       keys: [{ pubkey: payer.publicKey, isSigner: true, isWritable: false }],
       programId: memoProgramId,
