@@ -284,14 +284,16 @@ export default function App() {
       const data = await r.json()
       if (!r.ok) throw new Error(data.error || 'Solana registration failed')
       
-      if (data.rateLimited) {
+      if (data.error) {
+        setSolanaNotice({ message: data.error })
+      } else if (data.rateLimited) {
         setSolanaNotice(data)
       } else {
         setSolanaUrl(data.solscanUrl)
         setSolanaNotice(null)
       }
     } catch (err) {
-      setError(err.message)
+      setSolanaNotice({ message: err.message || 'Solana connection error' })
     } finally {
       setSolanaLoading(false)
     }

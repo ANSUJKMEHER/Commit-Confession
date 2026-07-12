@@ -16,7 +16,10 @@ export default async function handler(req, res) {
 
   try {
     // Connect to Solana Devnet RPC
-    const connection = new Connection('https://api.devnet.solana.com', 'confirmed')
+    const connection = new Connection('https://api.devnet.solana.com', {
+      commitment: 'confirmed',
+      confirmTransactionInitialTimeout: 8000
+    })
 
     // Initialize or retrieve the system keypair
     if (!systemPayer) {
