@@ -26,7 +26,14 @@ export default async function handler(req, res) {
       // Check if there is a pre-funded keypair in the environment
       if (process.env.SOLANA_PAYER_KEY) {
         try {
-          const secretKey = Uint8Array.from(JSON.parse(process.env.SOLANA_PAYER_KEY))
+          let cleanKey = process.env.SOLANA_PAYER_KEY.trim()
+          if (cleanKey.startsWith('"') && cleanKey.endsWith('"')) {
+            cleanKey = cleanKey.slice(1, -1)
+          }
+          if (cleanKey.startsWith("'") && cleanKey.endsWith("'")) {
+            cleanKey = cleanKey.slice(1, -1)
+          }
+          const secretKey = Uint8Array.from(JSON.parse(cleanKey))
           systemPayer = Keypair.fromSecretKey(secretKey)
         } catch (e) {
           console.error('Failed to parse SOLANA_PAYER_KEY:', e)
